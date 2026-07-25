@@ -38,20 +38,6 @@ public class MyMod {
 
 无需担心调用顺序——dotNetChecker 会在所有模组构造完成后统一校验。
 
-### 添加依赖
-
-dotNetChecker 尚未发布到 Maven 仓库。在此之前可以通过 [JitPack](https://jitpack.io/) 直接从 GitHub 构建：
-
-```kotlin
-repositories {
-    maven("https://jitpack.io")
-}
-
-dependencies {
-    compileOnly("com.github.dalizi2333:dotNetChecker:main-SNAPSHOT")
-}
-```
-
 ## 构建
 
 ```powershell

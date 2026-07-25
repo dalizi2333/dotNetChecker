@@ -38,20 +38,6 @@ public class MyMod {
 
 No need to worry about calling order -- dotNetChecker collects all registrations and validates them after every mod has constructed.
 
-### Adding as a Dependency
-
-dotNetChecker is not yet on any Maven repository. Until then, use [JitPack](https://jitpack.io/) to build directly from GitHub:
-
-```kotlin
-repositories {
-    maven("https://jitpack.io")
-}
-
-dependencies {
-    compileOnly("com.github.dalizi2333:dotNetChecker:main-SNAPSHOT")
-}
-```
-
 ## Building
 
 ```powershell
