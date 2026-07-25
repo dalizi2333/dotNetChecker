@@ -20,6 +20,14 @@ neoForge {
     version = "21.1.133"
 
     runs {
+        all {
+            // Support passing extra JVM arguments via Gradle property:
+            //   -PdotNetChecker.jvmArgs="-Ddotnetchecker.test.requireVersion=99.0.0 -Ddotnetchecker.test.requireModId=testrunner"
+            val extraJvmArgs = project.findProperty("dotNetChecker.jvmArgs") as? String
+            if (!extraJvmArgs.isNullOrBlank()) {
+                jvmArguments.addAll(extraJvmArgs.split("\\s+".toRegex()).filter { it.isNotBlank() })
+            }
+        }
         create("server") {
             server()
         }

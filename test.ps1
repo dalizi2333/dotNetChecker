@@ -5,7 +5,10 @@ param(
 
     [Parameter(Position = 1)]
     [ValidateSet("server", "client")]
-    [string]$Side = "server"
+    [string]$Side = "server",
+
+    [Parameter(Mandatory = $false)]
+    [string]$TestFailVersion = ""
 )
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -13,6 +16,12 @@ Set-Location $Root
 
 Write-Host "=== dotNetChecker Test Runner ===" -ForegroundColor Cyan
 Write-Host "Target: $Version ($Side)" -ForegroundColor Cyan
+Write-Host ""
+
+# Use the Java already on PATH / JAVA_HOME.
+# The Gradle toolchain will resolve the correct version for each test environment.
+Write-Host "Java: $(& java -version 2>&1 | Select-Object -First 1)" -ForegroundColor DarkGray
+Write-Host "JAVA_HOME: $env:JAVA_HOME" -ForegroundColor DarkGray
 Write-Host ""
 
 # Step 1: Build the main project JAR
@@ -43,7 +52,17 @@ Write-Host "[3/3] Starting $Version $Side..." -ForegroundColor Yellow
 Set-Location (Join-Path $Root "runs\$Version")
 
 $taskName = if ($Side -eq "server") { "runServer" } else { "runClient" }
-$sideResult = & .\gradlew.bat $taskName --no-daemon 2>&1
+
+# Build Gradle args
+$gradleArgs = @($taskName, "--no-daemon")
+if ($TestFailVersion) {
+    $jvmArgs = "-Ddotnetchecker.test.requireVersion=$TestFailVersion -Ddotnetchecker.test.requireModId=testrunner"
+    $gradleArgs += "-PdotNetChecker.jvmArgs=$jvmArgs"
+    Write-Host "Test mode: injecting requirement >= $TestFailVersion" -ForegroundColor Magenta
+}
+Write-Host "Running: gradlew $($gradleArgs -join ' ')" -ForegroundColor DarkGray
+
+$sideResult = & .\gradlew.bat $gradleArgs 2>&1
 $sideResult | Out-String | Write-Host
 
 # Restore original directory

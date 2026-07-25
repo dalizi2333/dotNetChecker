@@ -7,7 +7,12 @@ import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * .NET Runtime detection implementation - cross-platform, zero dependency.
@@ -39,14 +44,22 @@ public class DotNetCheckerImpl {
      * Check if .NET Runtime is installed on the current system.
      */
     public static DotNetResult check() {
-        // Priority 1: Try 'dotnet --version' command
-        DotNetResult commandResult = checkDotnetCommand();
+        // Priority 1: Try 'dotnet --list-runtimes' command (handles runtime-only installs)
+        DotNetResult commandResult = checkDotnetListRuntimes();
         if (commandResult.installed) {
             return commandResult;
         }
 
-        // Priority 2: Platform-specific fallback checks
+        // Priority 2: Try 'dotnet --version' command (SDK installs)
+        commandResult = checkDotnetCommand();
+        if (commandResult.installed) {
+            return commandResult;
+        }
+
+        // Priority 3: Platform-specific fallback checks
         if (isWindows()) {
+            DotNetResult fsResult = checkWindowsFileSystem();
+            if (fsResult.installed) return fsResult;
             return checkWindowsRegistry();
         } else if (isLinux() || isMac()) {
             return checkUnixPaths();
@@ -80,6 +93,125 @@ public class DotNetCheckerImpl {
             Thread.currentThread().interrupt();
         }
         return new DotNetResult(false, "未安装", "", "");
+    }
+
+    /**
+     * Check using 'dotnet --list-runtimes' command (works with runtime-only installs, no SDK needed).
+     */
+    private static DotNetResult checkDotnetListRuntimes() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("dotnet", "--list-runtimes");
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            String highestVersion = null;
+            String dotnetPath = null;
+            Pattern pattern = Pattern.compile("Microsoft\\.NETCore\\.App\\s+(\\d+\\.\\d+\\.\\d+.*?)\\s+\\[(.*?)\\]");
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    Matcher m = pattern.matcher(line);
+                    if (m.find()) {
+                        String ver = m.group(1).trim();
+                        String path = m.group(2).trim();
+                        if (highestVersion == null || compareVersions(ver, highestVersion) > 0) {
+                            highestVersion = ver;
+                            dotnetPath = path;
+                        }
+                    }
+                }
+            }
+            int exitCode = process.waitFor();
+
+            if (exitCode == 0 && highestVersion != null) {
+                return new DotNetResult(true, highestVersion, dotnetPath, null);
+            }
+        } catch (IOException e) {
+            // dotnet command not found
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return new DotNetResult(false, "未安装", "", "");
+    }
+
+    /**
+     * Check Windows filesystem for .NET Runtime directories (no SDK needed).
+     */
+    private static DotNetResult checkWindowsFileSystem() {
+        // Check DOTNET_ROOT environment variable first
+        String dotnetRoot = System.getenv("DOTNET_ROOT");
+        List<Path> searchPaths = new ArrayList<>();
+        if (dotnetRoot != null) {
+            searchPaths.add(Paths.get(dotnetRoot, "shared", "Microsoft.NETCore.App"));
+        }
+        String programFiles = System.getenv("ProgramFiles");
+        if (programFiles != null) {
+            searchPaths.add(Paths.get(programFiles, "dotnet", "shared", "Microsoft.NETCore.App"));
+        }
+        String programFilesX86 = System.getenv("ProgramFiles(x86)");
+        if (programFilesX86 != null) {
+            searchPaths.add(Paths.get(programFilesX86, "dotnet", "shared", "Microsoft.NETCore.App"));
+        }
+
+        String bestVersion = null;
+        String bestPath = null;
+
+        for (Path dir : searchPaths) {
+            if (Files.isDirectory(dir)) {
+                try {
+                    String[] versionDirs = Files.list(dir)
+                        .filter(Files::isDirectory)
+                        .map(p -> p.getFileName().toString())
+                        .filter(v -> v.matches("\\d+\\.\\d+\\.\\d+.*"))
+                        .toArray(String[]::new);
+
+                    for (String v : versionDirs) {
+                        if (bestVersion == null || compareVersions(v, bestVersion) > 0) {
+                            bestVersion = v;
+                            bestPath = dir.resolve(v).toString();
+                        }
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        if (bestVersion != null) {
+            // Determine the dotnet root path (parent of shared/Microsoft.NETCore.App)
+            String dotnetRootPath = bestPath;
+            for (int i = 0; i < 3; i++) {
+                dotnetRootPath = new File(dotnetRootPath).getParent();
+            }
+            return new DotNetResult(true, bestVersion, dotnetRootPath, null);
+        }
+
+        return new DotNetResult(false, "未安装", "", "");
+    }
+
+    /**
+     * Compare two semantic version strings (e.g. "8.0.29" vs "10.0.5").
+     * Returns negative if v1 < v2, positive if v1 > v2, 0 if equal.
+     * Strips any trailing qualifiers (e.g. "-preview.1") for comparison.
+     */
+    public static int compareVersions(String v1, String v2) {
+        String[] parts1 = v1.split("-")[0].split("\\.");
+        String[] parts2 = v2.split("-")[0].split("\\.");
+        int len = Math.max(parts1.length, parts2.length);
+        for (int i = 0; i < len; i++) {
+            int n1 = i < parts1.length ? parseIntSafe(parts1[i]) : 0;
+            int n2 = i < parts2.length ? parseIntSafe(parts2[i]) : 0;
+            if (n1 != n2) return n1 - n2;
+        }
+        return 0;
+    }
+
+    private static int parseIntSafe(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /**

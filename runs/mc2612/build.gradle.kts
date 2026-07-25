@@ -23,6 +23,12 @@ neoForge {
     version = "26.1.2.53-beta"
 
     runs {
+        all {
+            val extraJvmArgs = project.findProperty("dotNetChecker.jvmArgs") as? String
+            if (!extraJvmArgs.isNullOrBlank()) {
+                jvmArguments.addAll(extraJvmArgs.split("\\s+".toRegex()).filter { it.isNotBlank() })
+            }
+        }
         create("server") {
             server()
         }
