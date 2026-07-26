@@ -77,35 +77,67 @@ To test dotNetChecker against other NeoForge/Minecraft versions:
 
 1. **Create the directory** `runs/<version-name>/` (e.g. `runs/mc1211`)
 
-2. **Copy** an existing test `build.gradle.kts` as template, then adapt:
-   - `neoForge.version` — the target NeoForge version
-   - `java.toolchain.languageVersion` — the required JDK version (omit for Java 21 default)
-   - The `dependsOn(":jar")` and JAR-copy logic is already reusable
+2. **Copy** `runs/mc1211/build.gradle.kts` as template, then adapt:
+   - `neoForge.version` — the target NeoForge version (e.g. `"21.1.133"` or `"26.1.2.53-beta"`)
+   - Optional: add `java { toolchain { languageVersion = JavaLanguageVersion.of(N) } }` (omit for default Java 21)
+   - **Keep** the `runs { all { ... } }` block — it reads `-PdotNetChecker.jvmArgs`, which powers the `-TestFailVersion` test feature
+   - **Keep** `dependsOn(":jar")`, the JAR existence check, and the copy logic
+
+   Full template (matches `runs/mc1211/build.gradle.kts`):
 
    ```kotlin
-   // runs/<version-name>/build.gradle.kts — template
    plugins {
        id("net.neoforged.moddev") version "2.0.141"
    }
+
+   repositories.clear()
    repositories {
+       mavenLocal()
        maven("https://neoforged.forgecdn.net/releases")
        maven("https://neoforged.forgecdn.net/mojang-meta")
        maven("https://libraries.minecraft.net/")
+       maven("https://maven.aliyun.com/repository/public/")
+       maven("https://maven.aliyun.com/repository/central/")
        mavenCentral()
    }
+
+   // Uncomment if the target needs a JDK other than Java 21:
+   // java {
+   //     toolchain {
+   //         languageVersion = JavaLanguageVersion.of(25)
+   //     }
+   // }
+
    neoForge {
-       version = "<NeoForge version>"          // e.g. "21.1.133"
+       version = "<NeoForge version>"  // e.g. "21.1.133" or "26.1.2.53-beta"
+
        runs {
+           all {
+               // Supports -PdotNetChecker.jvmArgs passthrough (required by -TestFailVersion)
+               val extraJvmArgs = project.findProperty("dotNetChecker.jvmArgs") as? String
+               if (!extraJvmArgs.isNullOrBlank()) {
+                   jvmArguments.addAll(extraJvmArgs.split("\\s+".toRegex()).filter { it.isNotBlank() })
+               }
+           }
            create("server") { server() }
            create("client") { client() }
        }
    }
+
+   // Auto-build main project JAR and copy to run/mods/
    tasks.matching { it.name.startsWith("run") }.configureEach {
        dependsOn(":jar")
        doFirst {
            val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
+           if (!jarFile.exists()) {
+               throw GradleException("dotNetChecker JAR not found at ${jarFile.absolutePath}. Build the main project first.")
+           }
            mkdir("run/mods")
-           copy { from(jarFile) into("run/mods") }
+           copy {
+               from(jarFile)
+               into("run/mods")
+           }
+           logger.lifecycle("Copied dotNetChecker JAR to run/mods/")
        }
    }
    ```

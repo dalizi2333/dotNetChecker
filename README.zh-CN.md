@@ -77,35 +77,67 @@ JAR 输出到 `build/libs/dotNetChecker-1.0.0.jar`。
 
 1. **创建目录** `runs/<版本名>/`（例如 `runs/mc1211`）
 
-2. **复制** 现有的测试 `build.gradle.kts` 作为模板，然后修改：
-   - `neoForge.version` — 目标 NeoForge 版本
-   - `java.toolchain.languageVersion` — 所需的 JDK 版本（默认 Java 21 可省略）
-   - `dependsOn(":jar")` 和 JAR 复制逻辑直接复用
+2. **复制** `runs/mc1211/build.gradle.kts` 作为模板，然后修改：
+   - `neoForge.version` — 目标 NeoForge 版本（如 `"21.1.133"` 或 `"26.1.2.53-beta"`）
+   - 可选：添加 `java { toolchain { languageVersion = JavaLanguageVersion.of(N) } }`（默认 Java 21 可省略）
+   - **保留** `runs { all { ... } }` 块——它读取 `-PdotNetChecker.jvmArgs` 属性，是 `-TestFailVersion` 测试功能的关键
+   - **保留** `dependsOn(":jar")`、JAR 存在性检查和复制逻辑
+
+   完整模板（与 `runs/mc1211/build.gradle.kts` 一致）：
 
    ```kotlin
-   // runs/<版本名>/build.gradle.kts — 模板
    plugins {
        id("net.neoforged.moddev") version "2.0.141"
    }
+
+   repositories.clear()
    repositories {
+       mavenLocal()
        maven("https://neoforged.forgecdn.net/releases")
        maven("https://neoforged.forgecdn.net/mojang-meta")
        maven("https://libraries.minecraft.net/")
+       maven("https://maven.aliyun.com/repository/public/")
+       maven("https://maven.aliyun.com/repository/central/")
        mavenCentral()
    }
+
+   // 若目标版本需要非 Java 21 的 JDK，取消注释：
+   // java {
+   //     toolchain {
+   //         languageVersion = JavaLanguageVersion.of(25)
+   //     }
+   // }
+
    neoForge {
-       version = "<NeoForge 版本>"          // 例如 "21.1.133"
+       version = "<NeoForge 版本>"  // 例如 "21.1.133" 或 "26.1.2.53-beta"
+
        runs {
+           all {
+               // 支持 -PdotNetChecker.jvmArgs 透传 JVM 参数（-TestFailVersion 依赖此机制）
+               val extraJvmArgs = project.findProperty("dotNetChecker.jvmArgs") as? String
+               if (!extraJvmArgs.isNullOrBlank()) {
+                   jvmArguments.addAll(extraJvmArgs.split("\\s+".toRegex()).filter { it.isNotBlank() })
+               }
+           }
            create("server") { server() }
            create("client") { client() }
        }
    }
+
+   // 自动构建主项目 JAR 并复制到 run/mods/
    tasks.matching { it.name.startsWith("run") }.configureEach {
        dependsOn(":jar")
        doFirst {
            val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
+           if (!jarFile.exists()) {
+               throw GradleException("dotNetChecker JAR not found at ${jarFile.absolutePath}. Build the main project first.")
+           }
            mkdir("run/mods")
-           copy { from(jarFile) into("run/mods") }
+           copy {
+               from(jarFile)
+               into("run/mods")
+           }
+           logger.lifecycle("Copied dotNetChecker JAR to run/mods/")
        }
    }
    ```
