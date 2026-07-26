@@ -71,6 +71,57 @@ Simulate another mod requiring a higher version than what's installed:
 
 This injects a requirement of `>= 99.0.0` from a fake mod `testrunner`, causing the validation to fail and display the block screen.
 
+### Adding Test Environments for Other Versions
+
+To test dotNetChecker against other NeoForge/Minecraft versions:
+
+1. **Create the directory** `runs/<version-name>/` (e.g. `runs/mc1211`)
+
+2. **Copy** an existing test `build.gradle.kts` as template, then adapt:
+   - `neoForge.version` — the target NeoForge version
+   - `java.toolchain.languageVersion` — the required JDK version (omit for Java 21 default)
+   - The `dependsOn(":jar")` and JAR-copy logic is already reusable
+
+   ```kotlin
+   // runs/<version-name>/build.gradle.kts — template
+   plugins {
+       id("net.neoforged.moddev") version "2.0.141"
+   }
+   repositories {
+       maven("https://neoforged.forgecdn.net/releases")
+       maven("https://neoforged.forgecdn.net/mojang-meta")
+       maven("https://libraries.minecraft.net/")
+       mavenCentral()
+   }
+   neoForge {
+       version = "<NeoForge version>"          // e.g. "21.1.133"
+       runs {
+           create("server") { server() }
+           create("client") { client() }
+       }
+   }
+   tasks.matching { it.name.startsWith("run") }.configureEach {
+       dependsOn(":jar")
+       doFirst {
+           val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
+           mkdir("run/mods")
+           copy { from(jarFile) into("run/mods") }
+       }
+   }
+   ```
+
+3. **Register** in `settings.gradle.kts`:
+   ```kotlin
+   include("runs:mc1211", "runs:mc2612", "runs:<version-name>")
+   ```
+
+4. **Run** via subproject task:
+   ```
+   .\gradlew.bat :runs:<version-name>:runServer
+   ```
+
+5. **(Optional)** Create IntelliJ run configurations in `.idea/runConfigurations/` for one-click launch from the IDE toolbar.
+
 ## License
 
 MIT

@@ -71,6 +71,57 @@ JAR 输出到 `build/libs/dotNetChecker-1.0.0.jar`。
 
 这会注入一个来自假模组 `testrunner` 的 `>= 99.0.0` 版本需求，使校验失败并显示阻断画面。
 
+### 添加其他版本的测试环境
+
+要让 dotNetChecker 针对其他 NeoForge/Minecraft 版本进行测试：
+
+1. **创建目录** `runs/<版本名>/`（例如 `runs/mc1211`）
+
+2. **复制** 现有的测试 `build.gradle.kts` 作为模板，然后修改：
+   - `neoForge.version` — 目标 NeoForge 版本
+   - `java.toolchain.languageVersion` — 所需的 JDK 版本（默认 Java 21 可省略）
+   - `dependsOn(":jar")` 和 JAR 复制逻辑直接复用
+
+   ```kotlin
+   // runs/<版本名>/build.gradle.kts — 模板
+   plugins {
+       id("net.neoforged.moddev") version "2.0.141"
+   }
+   repositories {
+       maven("https://neoforged.forgecdn.net/releases")
+       maven("https://neoforged.forgecdn.net/mojang-meta")
+       maven("https://libraries.minecraft.net/")
+       mavenCentral()
+   }
+   neoForge {
+       version = "<NeoForge 版本>"          // 例如 "21.1.133"
+       runs {
+           create("server") { server() }
+           create("client") { client() }
+       }
+   }
+   tasks.matching { it.name.startsWith("run") }.configureEach {
+       dependsOn(":jar")
+       doFirst {
+           val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
+           mkdir("run/mods")
+           copy { from(jarFile) into("run/mods") }
+       }
+   }
+   ```
+
+3. **注册** 到 `settings.gradle.kts`：
+   ```kotlin
+   include("runs:mc1211", "runs:mc2612", "runs:<版本名>")
+   ```
+
+4. **运行** 子项目任务：
+   ```
+   .\gradlew.bat :runs:<版本名>:runServer
+   ```
+
+5. **（可选）** 在 `.idea/runConfigurations/` 中创建 IntelliJ 运行配置，实现 IDE 工具栏一键启动。
+
 ## 许可证
 
 MIT

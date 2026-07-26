@@ -38,10 +38,11 @@ neoForge {
     }
 }
 
-// 自动将主项目构建的 dotNetChecker JAR 复制到 run/mods/
+// 自动构建主项目 JAR 并复制到 run/mods/
 tasks.matching { it.name.startsWith("run") }.configureEach {
+    dependsOn(":jar")
     doFirst {
-        val jarFile = rootDir.parentFile.parentFile.resolve("build/libs/dotNetChecker-1.0.0.jar")
+        val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
         if (!jarFile.exists()) {
             throw GradleException("dotNetChecker JAR not found at ${jarFile.absolutePath}. Build the main project first.")
         }

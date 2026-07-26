@@ -24,21 +24,10 @@ Write-Host "Java: $(& java -version 2>&1 | Select-Object -First 1)" -ForegroundC
 Write-Host "JAVA_HOME: $env:JAVA_HOME" -ForegroundColor DarkGray
 Write-Host ""
 
-# Step 1: Build the main project JAR
-Write-Host "[1/2] Building dotNetChecker..." -ForegroundColor Yellow
-$jarResult = & .\gradlew.bat jar --no-daemon 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build failed!" -ForegroundColor Red
-    $jarResult | Out-String | Write-Host
-    exit 1
-}
-Write-Host "Build successful!" -ForegroundColor Green
-Write-Host ""
-
-# Step 2: Clean previous run artifacts (keep logs if needed)
+# Step 1: Clean previous run artifacts (keep logs if needed)
 $runDir = Join-Path $Root "runs\$Version\run"
 if (Test-Path $runDir) {
-    Write-Host "[2/3] Cleaning previous run artifacts..." -ForegroundColor Yellow
+    Write-Host "[1/2] Cleaning previous run artifacts..." -ForegroundColor Yellow
     Remove-Item -Recurse -Force "$runDir\mods" -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force "$runDir\world" -ErrorAction SilentlyContinue
     Remove-Item -Force "$runDir\server.properties" -ErrorAction SilentlyContinue
@@ -47,14 +36,13 @@ if (Test-Path $runDir) {
 }
 Write-Host ""
 
-# Step 3: Run the test environment
-Write-Host "[3/3] Starting $Version $Side..." -ForegroundColor Yellow
-Set-Location (Join-Path $Root "runs\$Version")
-
-$taskName = if ($Side -eq "server") { "runServer" } else { "runClient" }
+# Step 2: Build and run the test environment
+# Subproject task path: :runs:<Version>:run<Side>
+$subprojectPath = ":runs:$Version`:run$($Side.substring(0,1).toupper()+$Side.substring(1))"
+Write-Host "[2/2] Starting $Version $Side..." -ForegroundColor Yellow
 
 # Build Gradle args
-$gradleArgs = @($taskName, "--no-daemon")
+$gradleArgs = @($subprojectPath, "--no-daemon")
 if ($TestFailVersion) {
     $jvmArgs = "-Ddotnetchecker.test.requireVersion=$TestFailVersion -Ddotnetchecker.test.requireModId=testrunner"
     $gradleArgs += "-PdotNetChecker.jvmArgs=$jvmArgs"
@@ -64,6 +52,3 @@ Write-Host "Running: gradlew $($gradleArgs -join ' ')" -ForegroundColor DarkGray
 
 $sideResult = & .\gradlew.bat $gradleArgs 2>&1
 $sideResult | Out-String | Write-Host
-
-# Restore original directory
-Set-Location $Root

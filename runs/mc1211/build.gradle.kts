@@ -1,5 +1,5 @@
 plugins {
-    id("net.neoforged.moddev") version "2.0.115"
+    id("net.neoforged.moddev") version "2.0.141"
 }
 
 // 测试环境只需要能运行 Minecraft Server，不需要自己的源代码
@@ -37,11 +37,11 @@ neoForge {
     }
 }
 
-// 自动将主项目构建的 dotNetChecker JAR 复制到 run/mods/
-// 用 doFirst 确保每次运行前都执行复制
+// 自动构建主项目 JAR 并复制到 run/mods/
 tasks.matching { it.name.startsWith("run") }.configureEach {
+    dependsOn(":jar")
     doFirst {
-        val jarFile = rootDir.parentFile.parentFile.resolve("build/libs/dotNetChecker-1.0.0.jar")
+        val jarFile = rootDir.resolve("build/libs/dotNetChecker-1.0.0.jar")
         if (!jarFile.exists()) {
             throw GradleException("dotNetChecker JAR not found at ${jarFile.absolutePath}. Build the main project first.")
         }

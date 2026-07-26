@@ -8,3 +8,5 @@ pluginManagement {
     }
 }
 rootProject.name = "dotNetChecker"
+
+include("runs:mc1211", "runs:mc2612")

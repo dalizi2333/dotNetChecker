@@ -26,10 +26,16 @@ build/
 .settings/
 
 # IntelliJ IDEA
-.idea/
 *.iws
 *.iml
 *.ipr
+.idea/.gitignore
+.idea/modules.xml
+.idea/vcs.xml
+.idea/misc.xml
+.idea/gradle.xml
+.idea/compiler.xml
+.idea/jarRepositories.xml
 
 # VS Code
 .vscode/
