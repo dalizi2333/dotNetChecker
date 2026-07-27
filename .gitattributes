@@ -1,0 +1,16 @@
+# Normalize line endings for all text files
+* text=auto
+
+# Windows batch files should have CRLF line endings
+*.bat text eol=crlf
+
+# Gradle wrapper jar is binary
+*.jar binary
+
+# Images are binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
