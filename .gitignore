@@ -59,3 +59,5 @@ runs/*/run/
 # Test project build artifacts
 runs/*/build/
 runs/*/.gradle/
+
+.fake
